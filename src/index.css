@@ -1,0 +1,8 @@
+/*
+ * Tailwind CSS v4 の読み込み。
+ * v3 までの `@tailwind base; @tailwind components; @tailwind utilities;` という
+ * 3行宣言は廃止され、v4 ではこの 1 行だけで base / components / utilities を取り込む。
+ * 設定ファイル (tailwind.config.js) も不要で、@tailwindcss/vite プラグインが
+ * src 配下を自動でスキャンしてクラスを生成する。
+ */
+@import "tailwindcss";
