@@ -2,62 +2,70 @@
  * Calendar コンポーネント — カレンダー画面の本体
  *
  * 役割:
- *   - 「現在表示中の月」の状態を持つ（このアプリで最初の useState 登場）
- *   - Header を出し、< / > が押されたら月を進めたり戻したりする
- *   - dateUtils.buildMonthGrid で日付グリッドを作り、CalendarDay を 7 列で並べる
- *   - 日付セルがクリックされたら、いまは console.log するだけ（モーダルは Issue #3）
+ *   - 「現在表示中の月」を useState で持つ
+ *   - 日付タップで EntryModal を開き、そのまま CRUD を行う
+ *   - 各日にエントリーがあるかどうかを CalendarDay に渡してドット表示させる
+ *   - useEntries フックで永続化を含む CRUD ロジックをまるごと利用する
  *
  * 設計のポイント（学習メモ）:
- *   - useState は「コンポーネント内の記憶領域」。
- *     `const [currentMonth, setCurrentMonth] = useState(new Date())`
- *     と書くと、currentMonth が現在値、setCurrentMonth(newValue) で更新できる。
- *     setXxx を呼ぶと React は「再レンダリング」をスケジュールし、
- *     新しい currentMonth で関数全体が再実行される。
  *
- *   - 状態を更新するときは「前の値を直接いじらず、新しい値を渡す」のが鉄則（イミュータブル）。
- *     ここでは addMonths が新しい Date を返すので OK。
+ * 1) 状態の置き場所
+ *    - currentMonth（カレンダー画面の状態） → このコンポーネント
+ *    - 選択中の日付 + モーダル開閉状態 → このコンポーネント
+ *    - エントリーの中身（永続化込み） → useEntries フックの中
  *
- *   - useState の初期値に関数ではなく `new Date()` を直接書くと、
- *     厳密には毎レンダリングで Date が作られるが React は初回のみ採用する。
- *     Date 生成は安いので問題ないが、重い初期化なら useState(() => 重い処理()) と
- *     関数で渡すのが定石。
+ *    「View 固有の状態」と「アプリのドメインデータ」を別の場所に置くと、
+ *    フックを差し替えれば永続化先を変えられる（Phase 2 で Supabase に移行する伏線）。
+ *
+ * 2) hasEntry の事前計算（Map）
+ *    - 各セルで「この日付にエントリーがあるか？」を毎回 filter で見ると O(セル数 × エントリー数)。
+ *    - 1 度だけ Set にしておけば O(セル数) で済む。
+ *    - useMemo を使えばさらに最適化できるが、月 1 回再計算なので今は素朴に書く。
  */
 
 import { useState } from 'react'
 import Header from './Header'
 import CalendarDay from './CalendarDay'
+import EntryModal from './EntryModal'
+import { useEntries } from '../hooks/useEntries'
 import { addMonths, buildMonthGrid, WEEKDAY_LABELS } from '../utils/dateUtils'
 
 function Calendar() {
   // 現在表示中の「月」を管理する state。初期値は今月（実行時の今日）。
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
-  // 前月ボタンが押されたときのハンドラ。
-  // setCurrentMonth に「前月の Date」を渡すだけ。
-  // ここで prev => addMonths(prev, -1) のように関数形式で渡すと
-  // 「最新の state」を確実に元に計算できる（連打されても安全）。
+  // モーダル制御：選択された日付（dateKey）。null ならモーダルは閉じている扱い。
+  const [selectedDateKey, setSelectedDateKey] = useState(null)
+
+  // エントリーの CRUD はカスタムフックに集約。
+  // ここから受け取った関数をそのままモーダルに props で渡せばよい。
+  const { entries, getEntriesByDate, createEntry, updateEntry, deleteEntry } = useEntries()
+
+  // 月ナビゲーション
   const handlePrev = () => setCurrentMonth((prev) => addMonths(prev, -1))
   const handleNext = () => setCurrentMonth((prev) => addMonths(prev, 1))
 
-  // 日付セルがクリックされたときのハンドラ（Issue #3 でモーダル表示に置き換える）。
-  const handleSelectDay = (dateKey) => {
-    // eslint-disable-next-line no-console
-    console.log('selected:', dateKey)
-  }
+  // 日付セルがクリックされたとき：その日付でモーダルを開く。
+  const handleSelectDay = (dateKey) => setSelectedDateKey(dateKey)
 
-  // currentMonth が変わるたびに、グリッドも再計算される（関数コンポーネントが再実行されるため）。
-  // パフォーマンス上はメモ化の余地もあるが、月 1 回程度の再計算なので素朴に呼ぶ。
+  // モーダルを閉じる
+  const handleCloseModal = () => setSelectedDateKey(null)
+
+  // 月グリッド生成
   const weeks = buildMonthGrid(currentMonth)
 
+  // 「エントリーがある日付」の集合を一度だけ作る。
+  // Set にしておくと has() が O(1) で引ける。
+  const entryDateSet = new Set(entries.map((e) => e.entryDate))
+
+  // モーダルに渡す「その日の一覧」。selectedDateKey が null のときは空配列で安全に。
+  const entriesForSelectedDate = selectedDateKey ? getEntriesByDate(selectedDateKey) : []
+
   return (
-    // 画面全体のレイアウト。
-    //   max-w-md : スマホ幅基準。PC でも横に広がりすぎない
-    //   px-4     : 端の余白
-    //   py-6     : 上下の余白
     <div className="w-full max-w-md mx-auto px-4 py-6">
       <Header currentMonth={currentMonth} onPrev={handlePrev} onNext={handleNext} />
 
-      {/* 曜日ヘッダー（日〜土）。grid-cols-7 で 7 等分する */}
+      {/* 曜日ヘッダー（日〜土） */}
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAY_LABELS.map((label) => (
           <div
@@ -69,25 +77,34 @@ function Calendar() {
         ))}
       </div>
 
-      {/*
-        日付グリッド本体。
-        weeks は 2 次元配列だが、CSS Grid を 7 列にして全セルを 1 つの grid に流し込むと
-        週ごとに改行する必要がなく、レイアウトが自然に組める。
-
-        React の key について（学習メモ）:
-          - 配列を map でレンダリングするときは key 必須。
-          - key は「兄弟の中で一意」であればよい。ここでは dateKey ("YYYY-MM-DD") が
-            グリッド全体で重複しないので、それをそのまま使うのが安全で読みやすい。
-      */}
+      {/* 日付グリッド本体 */}
       <div className="grid grid-cols-7 gap-1">
         {weeks.flat().map((cell) => (
           <CalendarDay
             key={cell.dateKey}
             cell={cell}
+            hasEntry={entryDateSet.has(cell.dateKey)}
             onSelect={handleSelectDay}
           />
         ))}
       </div>
+
+      {/*
+        エントリーモーダル。
+        selectedDateKey が null のときはコンポーネント自体を描画しない。
+        こうすると「閉→開」のたびに毎回マウントされ、内部 state が自動でリセットされる。
+        （useEffect で setState する anti-pattern を避けるための設計）
+      */}
+      {selectedDateKey !== null && (
+        <EntryModal
+          dateKey={selectedDateKey}
+          entries={entriesForSelectedDate}
+          onClose={handleCloseModal}
+          onCreate={createEntry}
+          onUpdate={updateEntry}
+          onDelete={deleteEntry}
+        />
+      )}
     </div>
   )
 }
