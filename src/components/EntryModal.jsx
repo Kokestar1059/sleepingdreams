@@ -192,12 +192,16 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
           <h3 className="text-base font-semibold text-gray-900">
             {formatHeading(dateKey)}
           </h3>
+          {/*
+            タップターゲットは 44×44px 以上（CLAUDE.md「UI・デザイン方針」）に従う。
+            Tailwind の h-11 w-11 = 44px。寝起きの片手スマホ操作で押し外しを防ぐ。
+          */}
           <button
             type="button"
             onClick={onClose}
             aria-label="閉じる"
             className="
-              h-9 w-9 flex items-center justify-center
+              h-11 w-11 flex items-center justify-center
               rounded-full text-gray-600
               hover:bg-gray-100 active:scale-95 transition
             "
