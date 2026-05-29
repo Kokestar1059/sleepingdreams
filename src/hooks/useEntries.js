@@ -23,8 +23,17 @@
  *
  * 3) useEffect で永続化
  *    - entries が変わるたびに localStorage へ書き込む。
- *    - 初回マウントでも走るが、その時は localStorage の現在値と同じはずなので
- *      実害はない（同じ JSON で上書きされるだけ）。
+ *    - ただし「初回マウントの effect」はスキップする（後述）。
+ *
+ * 3.5) 初回 effect をスキップする理由
+ *    - storage.js は JSON が壊れていたら静かに `[]` を返すフォールバック設計。
+ *    - もし初回 effect で素直に `saveEntries(entries)` を呼ぶと、
+ *      ユーザーの壊れかけデータが「空配列で上書き」されて完全に消える。
+ *      （旧バージョンが書いた未知形式、手動で localStorage をいじって壊した場合など）
+ *    - useRef で「初回マウントか？」を覚えておき、初回だけは書き込みをスキップ。
+ *      そうすれば「ユーザーが何か操作して state を変えたとき」だけ保存される。
+ *    - これは「props → setState」系の anti-pattern ではなく、
+ *      effect のうち「同期化が不要な初回」を明示的に外す典型的なパターン。
  *
  * 4) state 更新はイミュータブルに
  *    - 既存配列を push せず、必ず新しい配列を返す（[...prev, item] / map / filter）。
@@ -37,7 +46,7 @@
  *      必要が出てから足す。
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadEntries, saveEntries } from '../utils/storage'
 
 /**
@@ -55,9 +64,26 @@ export function useEntries() {
   // localStorage を初回だけ読む（lazy initializer）。
   const [entries, setEntries] = useState(() => loadEntries())
 
+  // 「初回マウントの effect か？」フラグ。
+  //   - useRef は値が変わっても再レンダリングをトリガーしない箱。
+  //   - useState だと書き換えるたびに再レンダされてしまうので不適。
+  //   - React Strict Mode の二重マウント対策にもなる（dev では mount → unmount → mount の
+  //     順で走るが、本物のユーザー操作前なら必ず初期値 [] のままなので保存する必要が無い）。
+  const isFirstRender = useRef(true)
+
   // entries が更新されるたびに永続化。
   // 依存配列に entries を入れているので、内容が変わるたびにこの effect が再実行される。
+  //
+  // ただし、初回マウントだけは「localStorage を読んだだけ」の状態なので保存しない。
+  //   - もし loadEntries() がフォールバックで [] を返している場合（JSON 破損など）、
+  //     ここで素直に保存すると破損データが空配列で上書きされ、復旧の可能性まで消える。
+  //   - 「ユーザー操作で entries が変わったとき」だけ保存することで、
+  //     破損データに不可逆な書き込みをするのを回避する。
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     saveEntries(entries)
   }, [entries])
 
@@ -65,11 +91,19 @@ export function useEntries() {
    * 指定日のエントリーだけを抜き出す。
    * モーダルで「その日の一覧」を出すときに使う。
    *
+   * 並び順は createdAt 降順（新しいものが上）に明示する。
+   *   - entries 配列の格納順は createEntry の append 順 = createdAt 昇順だが、
+   *     それに暗黙依存すると将来並びが変わったときに表示が崩れる。
+   *   - ユーザー視点では「さっき書いた夢」が一番上に来る方が自然。
+   *   - sort は元配列を破壊するので、filter で作った新しい配列に対して呼ぶ。
+   *
    * 軽量な配列フィルタなので毎レンダリング呼んでも問題ない。
    * （将来 entries が肥大化したら useMemo の出番）
    */
   const getEntriesByDate = (dateKey) => {
-    return entries.filter((e) => e.entryDate === dateKey)
+    return entries
+      .filter((e) => e.entryDate === dateKey)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   }
 
   /**

@@ -17,13 +17,15 @@
  *    「View 固有の状態」と「アプリのドメインデータ」を別の場所に置くと、
  *    フックを差し替えれば永続化先を変えられる（Phase 2 で Supabase に移行する伏線）。
  *
- * 2) hasEntry の事前計算（Map）
+ * 2) hasEntry の事前計算（Set）
  *    - 各セルで「この日付にエントリーがあるか？」を毎回 filter で見ると O(セル数 × エントリー数)。
- *    - 1 度だけ Set にしておけば O(セル数) で済む。
- *    - useMemo を使えばさらに最適化できるが、月 1 回再計算なので今は素朴に書く。
+ *    - 1 度だけ Set にしておけば has() が O(1) で引けて、合計 O(セル数) で済む。
+ *    - さらに useMemo で「entries が変わったときだけ」再計算するようにし、
+ *      月ナビゲーションやモーダル開閉のような無関係な再レンダで作り直さない。
+ *      （Set の生成自体は軽いが、依存配列で意図を明示すると後から読む人に親切）
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Header from './Header'
 import CalendarDay from './CalendarDay'
 import EntryModal from './EntryModal'
@@ -54,9 +56,14 @@ function Calendar() {
   // 月グリッド生成
   const weeks = buildMonthGrid(currentMonth)
 
-  // 「エントリーがある日付」の集合を一度だけ作る。
-  // Set にしておくと has() が O(1) で引ける。
-  const entryDateSet = new Set(entries.map((e) => e.entryDate))
+  // 「エントリーがある日付」の集合を作る。
+  //   - Set にしておくと has() が O(1) で引ける（CalendarDay 毎の判定が速い）。
+  //   - useMemo の依存配列は [entries]。entries 参照が変わったときだけ作り直し、
+  //     月ナビ・モーダル開閉のような無関係な再レンダではキャッシュを再利用する。
+  const entryDateSet = useMemo(
+    () => new Set(entries.map((e) => e.entryDate)),
+    [entries]
+  )
 
   // モーダルに渡す「その日の一覧」。selectedDateKey が null のときは空配列で安全に。
   const entriesForSelectedDate = selectedDateKey ? getEntriesByDate(selectedDateKey) : []
