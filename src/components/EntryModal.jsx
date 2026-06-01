@@ -408,13 +408,15 @@ function FormView({
           編集モードのみ「削除」ボタンを出す。
             破壊的アクションは強調しない。ボーダー付きボタン → テキストのみに変え、
             red-600 → red-300 と薄くして「あえて見つけにいく」操作にする（誤タップ抑制）。
+            ただし高さは h-11(44px) を維持：誤タップ抑制は「色を薄く・テキストのみ」で達成し、
+            タップ領域は iOS HIG の最低 44px を割らない（CLAUDE.md のタップターゲット規約）。
         */}
         {isEditing && (
           <button
             type="button"
             onClick={onDelete}
             className="
-              w-full h-10 text-xs text-red-300
+              w-full h-11 text-xs text-red-300
               hover:text-red-400 active:opacity-60 transition-colors
             "
           >
