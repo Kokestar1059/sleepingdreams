@@ -23,32 +23,40 @@ function CalendarDay({ cell, hasEntry, onSelect }) {
   const classes = [
     // relative はドットを絶対配置するための基準点。
     'relative aspect-square flex items-center justify-center',
-    'rounded-md text-sm select-none',
-    'transition active:scale-95',
+    // 原研哉トーン:
+    //   rounded-md → rounded-none。グリッドの gap を 0 にしたので角丸を残すと
+    //   セル同士の角丸が干渉して「パッチワーク状の隙間」に見える。角を消して格子を溶かす。
+    'rounded-none text-sm select-none',
+    // active:scale-95 → active:opacity-60。
+    //   セルが縮むと密集した格子で隣と重なる感覚が出る。形を崩さずトーン（不透明度）だけで
+    //   「押した」ことを伝えるほうが静か。transition も色変化に限定する。
+    'transition-colors active:opacity-60',
     'hover:bg-gray-100',
   ]
 
   if (!isCurrentMonth) {
-    // 先月末・翌月頭はグレーアウト
-    classes.push('text-gray-300')
+    // 先月末・翌月頭はグレーアウト。gray-300 → gray-200 に 1 段引いて、
+    // 「存在は示すが主張しない」状態にする。
+    classes.push('text-gray-200')
   } else if (isToday) {
-    // 今日は黒背景・白文字でハイライト（モノトーンのアクセント）
-    classes.push('bg-gray-900 text-white hover:bg-gray-900')
+    // 今日のハイライト。bg-gray-900 → bg-gray-800 に 1 段だけ明るく。
+    //   純黒に近い強さは原研哉的な「静けさ」を壊すが、暗い部屋で今日を即座に見つける
+    //   視認性も外せない。その接点が gray-800（黒に近いが純黒ではない）。
+    classes.push('bg-gray-800 text-white hover:bg-gray-800')
   } else {
     // 通常の今月の日
     classes.push('text-gray-900')
   }
 
-  // ドットの色：
-  //   - 今日（黒背景）の上では白いドット
-  //   - 今月以外（薄いグレーの数字）の上ではグレーのドット
-  //   - 通常はメインカラーの濃いグレー
-  // 「視覚的に主張しすぎない」がモノトーンの方針。
+  // ドットの色（原研哉トーン: 「そっとそこにある記録」）:
+  //   - 今日（濃い背景）の上では白いドットを少し和らげた white/70
+  //   - 今月以外（薄いグレーの数字）の上では gray-200
+  //   - 通常は gray-800 → gray-400 へ大きく引く。主張させず気配だけ残す
   const dotColor = !isCurrentMonth
-    ? 'bg-gray-300'
+    ? 'bg-gray-200'
     : isToday
-    ? 'bg-white'
-    : 'bg-gray-800'
+    ? 'bg-white/70'
+    : 'bg-gray-400'
 
   return (
     <button
@@ -63,12 +71,13 @@ function CalendarDay({ cell, hasEntry, onSelect }) {
         エントリーがある日にだけドットを描画。
           - absolute で数字レイアウトに干渉させない
           - bottom-1 で底辺から少し浮かす
-          - 1.5 (= 6px) は小さいが、視覚ノイズを抑えつつ気付ける塩梅
+          - w-2 h-2 (= 8px)：6px から拡大。暗い部屋・低輝度でも視認できる最小サイズ。
+            色は gray-400 と薄めなので、サイズで「気配」を担保する設計。
       */}
       {hasEntry && (
         <span
           aria-hidden="true"
-          className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${dotColor}`}
+          className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${dotColor}`}
         />
       )}
     </button>

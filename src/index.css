@@ -6,3 +6,35 @@
  * src 配下を自動でスキャンしてクラスを生成する。
  */
 @import "tailwindcss";
+
+/*
+ * モーダル出現アニメーション。
+ *
+ * 学習メモ:
+ *   - Tailwind v4 は Framer Motion などのライブラリを足さなくても、
+ *     ここに @keyframes を素の CSS で書いておけば
+ *     `animate-[overlayIn_200ms_ease-out]` という任意値構文で JSX から使える。
+ *   - 原研哉的な「そっと現れる」静けさを狙い、動きは控えめにする：
+ *       overlayIn : 背景スクリムをフェードインさせるだけ
+ *       cardIn    : カードを 10px 下からふわっと持ち上げる（大げさにしない）
+ *   - 200ms / ease-out は「自然に減速して止まる」感覚。手の動きに連動して見える最小コスト。
+ */
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

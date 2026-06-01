@@ -137,7 +137,7 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
     // 学習メモ:
     //   window.confirm はブラウザ標準のダイアログ。
     //   Phase 1 では十分。Phase 2 以降で見た目を整えたい場合は自前のカスタムダイアログに置換する。
-    const ok = window.confirm('このエントリーを削除しますか？')
+    const ok = window.confirm('このメモを消しますか？')
     if (!ok) return
     onDelete(editingEntry.id)
     setView('list')
@@ -155,17 +155,20 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
 
   return (
     // オーバーレイ：画面全体を覆う半透明レイヤー + 背景ブラー（スクリム）
-    //   - backdrop-blur-sm : 背景のカレンダーを軽くぼかして「裏は触れない」感を出す
-    //   - bg-black/40      : 半透明の黒で全体を一段暗くしてダイアログを浮き立たせる
-    //   - items-center     : 画面中央にダイアログを配置（全端末共通）
-    //   - p-4              : 端末端からのマージン。狭い画面でもダイアログが端に張り付かない
+    //   原研哉トーン: 背景を遮断しすぎず、少しだけ気配を残す。
+    //   - backdrop-blur-[2px] : ブラーを 4px→2px に弱め、裏のカレンダーがうっすら見える
+    //   - bg-black/30         : スクリムも 40%→30% に薄め、「夢の記録中も自分はカレンダーの上にいる」連続感
+    //   - items-center        : 画面中央にダイアログを配置（全端末共通）
+    //   - p-5                 : 端末端からのマージン(16px→20px)。カードが端に張り付かない
+    //   - animate-[overlayIn...] : index.css の @keyframes でフェードイン
     <div
       onClick={handleOverlayClick}
       className="
         fixed inset-0 z-50
-        bg-black/40 backdrop-blur-sm
+        bg-black/30 backdrop-blur-[2px]
         flex items-center justify-center
-        p-4
+        p-5
+        animate-[overlayIn_200ms_ease-out]
       "
       // role / aria はモーダルらしさをスクリーンリーダーに伝えるためのおまじない
       role="dialog"
@@ -176,20 +179,30 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
         モーダル本体（ダイアログカード）。
           - 全端末で中央配置・全周角丸の "カード" として描画する
           - max-h-[85vh] でビューポートに収め、内部スクロールで溢れを吸収
-          - shadow-xl で背景から浮かせる
+          - shadow は shadow-xl(濃い影)をやめ、淡く広い影に。
+            rgba(0,0,0,0.08) で 40px ぼかすと「空気の上に浮いた紙」感になる（原研哉トーン）。
+          - animate-[cardIn...] : 10px 下からふわっと持ち上げる（index.css 定義）
       */}
       <div
         className="
           w-full max-w-md
           bg-white
           rounded-2xl
-          shadow-xl
+          shadow-[0_8px_40px_rgba(0,0,0,0.08)]
           max-h-[85vh] flex flex-col
+          animate-[cardIn_200ms_ease-out]
         "
       >
-        {/* ヘッダー */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h3 className="text-base font-semibold text-gray-900">
+        {/*
+          ヘッダー
+            原研哉トーン: 日付は「記録がある場所の座標（標識）」であり主役ではない。
+            text-base font-semibold gray-900（主張する見出し）から
+            text-sm font-normal tracking gray-400（そっとある標識）に降格させ、
+            主役を一覧のエントリータイトルに譲る。余白も px-4 py-3 → px-6 py-5 に広げる。
+            ボーダーは gray-200 → gray-100 に引いて線を消す。
+        */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <h3 className="text-sm font-normal tracking-[0.08em] text-gray-400">
             {formatHeading(dateKey)}
           </h3>
           {/*
@@ -202,11 +215,16 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
             aria-label="閉じる"
             className="
               h-11 w-11 flex items-center justify-center
-              rounded-full text-gray-600
-              hover:bg-gray-100 active:scale-95 transition
+              rounded-full
+              hover:bg-gray-100 active:opacity-60 transition-colors
             "
           >
-            <span className="text-xl leading-none">×</span>
+            {/*
+              閉じるボタンは「使えるが主張しない」存在に。
+              アイコンの色をボタンではなく子要素の span で text-gray-300 に指定することで、
+              通常時は薄く、hover:bg-gray-100 の反応は保つ。
+            */}
+            <span className="text-xl leading-none text-gray-300">×</span>
           </button>
         </div>
 
@@ -248,14 +266,19 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
 function ListView({ entries, onClickCreate, onClickEdit }) {
   return (
     <>
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      {/* 一覧エリア。余白を px-4 py-3 → px-6 py-4 に広げて呼吸させる */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {entries.length === 0 ? (
-          // 空状態
-          <p className="text-sm text-gray-500 text-center py-8">
+          // 空状態。
+          //   原研哉の「白の余白は空っぽではなく、これから満たされる器」を実装する。
+          //   py-8 → py-12 と余白を広げ、text-gray-500 → gray-300 と引くことで
+          //   メッセージ自体も静かに佇ませる。
+          <p className="text-sm text-gray-300 text-center py-12 tracking-[0.04em]">
             この日の記録はまだありません
           </p>
         ) : (
-          <ul className="space-y-2">
+          // 行間 space-y-2 → space-y-3。1 件ずつが独立した記憶として見える
+          <ul className="space-y-3">
             {entries.map((entry) => (
               <li key={entry.id}>
                 <button
@@ -263,20 +286,22 @@ function ListView({ entries, onClickCreate, onClickEdit }) {
                   onClick={() => onClickEdit(entry)}
                   className="
                     w-full text-left
-                    px-3 py-3
-                    rounded-lg border border-gray-200
-                    hover:bg-gray-50 active:scale-[0.99] transition
+                    px-4 py-4
+                    rounded-xl border border-gray-100
+                    hover:bg-gray-50 active:opacity-60 transition-colors
                   "
                 >
                   {/*
-                    タイトル：未入力なら "(無題)" と出す。
-                    本文：1 行プレビュー（line-clamp-1）で簡潔に。
+                    タイトル：未入力なら "(無題)" と出す。font-medium → font-normal。
+                      日本語 font-normal は十分読めるので medium の主張を抜く。
+                    本文：1 行プレビュー（line-clamp-1）。gray-500 → gray-400、mt-1 → mt-1.5。
+                      タイトルとの間に階層を作り、夢の記憶らしく薄く添える。
                   */}
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     {entry.title || '(無題)'}
                   </div>
                   {entry.body && (
-                    <div className="text-xs text-gray-500 mt-1 line-clamp-1">
+                    <div className="text-xs text-gray-400 tracking-[0.02em] mt-1.5 line-clamp-1">
                       {entry.body}
                     </div>
                   )}
@@ -288,15 +313,20 @@ function ListView({ entries, onClickCreate, onClickEdit }) {
       </div>
 
       {/* フッター：新規追加ボタン */}
-      <div className="px-4 py-3 border-t border-gray-200">
+      <div className="px-6 py-4 border-t border-gray-100">
+        {/*
+          このアプリで最も多く押すボタン。寝起きの片手で迷わずタップできるよう
+          h-12 → h-14 (48px→56px) に拡大。font-medium → font-normal + 字間で
+          「命令」ではなく「案内」のトーンに。
+        */}
         <button
           type="button"
           onClick={onClickCreate}
           className="
-            w-full h-12
-            rounded-lg
-            bg-gray-900 text-white text-sm font-medium
-            hover:bg-gray-800 active:scale-[0.99] transition
+            w-full h-14
+            rounded-xl
+            bg-gray-900 text-white text-sm font-normal tracking-[0.06em]
+            hover:bg-gray-800 active:opacity-80 transition-colors
           "
         >
           + 新規追加
@@ -326,9 +356,11 @@ function FormView({
 }) {
   return (
     <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {/* 入力エリア。余白 px-4 py-3 space-y-3 → px-6 py-5 space-y-4 でゆったりさせる */}
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
         <div>
-          <label htmlFor="entry-title" className="block text-xs text-gray-500 mb-1">
+          {/* ラベルは案内板。gray-500 → gray-400 + 字間、mb-1 → mb-2 で入力欄から独立させる */}
+          <label htmlFor="entry-title" className="block text-xs text-gray-400 tracking-[0.06em] mb-2">
             タイトル
           </label>
           <input
@@ -338,61 +370,76 @@ function FormView({
             onChange={(e) => onChangeTitle(e.target.value)}
             placeholder="例: 空を飛ぶ夢"
             className="
-              w-full h-11 px-3
-              rounded-lg border border-gray-300
-              text-sm text-gray-900
-              focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900
+              w-full h-11 px-4
+              rounded-xl border border-gray-100
+              text-base text-gray-900
+              focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-400
             "
           />
         </div>
 
         <div>
-          <label htmlFor="entry-body" className="block text-xs text-gray-500 mb-1">
+          <label htmlFor="entry-body" className="block text-xs text-gray-400 tracking-[0.06em] mb-2">
             内容
           </label>
+          {/*
+            夢の内容を書く欄は「入力フォーム」ではなく「日記のページ」として体験させたい。
+              - text-sm → text-base leading-relaxed: 16px + ゆったり行間で寝起きでも読みやすい
+              - rows={8} → {6}: 画面の大半を占めないようにし、フッターのボタンが見える余裕を残す
+              - focus リングは ring-2(太い) → ring-1 gray-300(細い): 「叫ばず静かに示す」
+          */}
           <textarea
             id="entry-body"
             value={body}
             onChange={(e) => onChangeBody(e.target.value)}
             placeholder="夢の内容をメモ..."
-            rows={8}
+            rows={6}
             className="
-              w-full px-3 py-2
-              rounded-lg border border-gray-300
-              text-sm text-gray-900
+              w-full px-4 py-3
+              rounded-xl border border-gray-100
+              text-base leading-relaxed text-gray-900
               resize-none
-              focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900
+              focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-400
             "
           />
         </div>
 
-        {/* 編集モードのみ「削除」ボタンを出す */}
+        {/*
+          編集モードのみ「削除」ボタンを出す。
+            破壊的アクションは強調しない。ボーダー付きボタン → テキストのみに変え、
+            red-600 → red-300 と薄くして「あえて見つけにいく」操作にする（誤タップ抑制）。
+            ただし高さは h-11(44px) を維持：誤タップ抑制は「色を薄く・テキストのみ」で達成し、
+            タップ領域は iOS HIG の最低 44px を割らない（CLAUDE.md のタップターゲット規約）。
+        */}
         {isEditing && (
           <button
             type="button"
             onClick={onDelete}
             className="
-              w-full h-11
-              rounded-lg
-              border border-red-200 text-red-600 text-sm
-              hover:bg-red-50 active:scale-[0.99] transition
+              w-full h-11 text-xs text-red-300
+              hover:text-red-400 active:opacity-60 transition-colors
             "
           >
-            このエントリーを削除
+            このメモを消す
           </button>
         )}
       </div>
 
-      {/* フッター：キャンセル / 保存 */}
-      <div className="px-4 py-3 border-t border-gray-200 flex gap-2">
+      {/*
+        フッター：キャンセル / 保存
+          キャンセルは「破棄の宣言」ではなく「戻るだけ」。text-gray-700 → gray-400 と
+          主張を抑えることで、保存ボタン（黒）との重みの差が自然に生まれる。
+          高さは h-12 → h-14 で寝起きでもタップしやすく。
+      */}
+      <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
         <button
           type="button"
           onClick={onCancel}
           className="
-            flex-1 h-12
-            rounded-lg
-            border border-gray-300 text-gray-700 text-sm font-medium
-            hover:bg-gray-50 active:scale-[0.99] transition
+            flex-1 h-14
+            rounded-xl
+            border border-gray-200 text-gray-400 text-sm font-normal
+            hover:bg-gray-50 active:opacity-60 transition-colors
           "
         >
           キャンセル
@@ -400,10 +447,10 @@ function FormView({
         <button
           type="submit"
           className="
-            flex-1 h-12
-            rounded-lg
-            bg-gray-900 text-white text-sm font-medium
-            hover:bg-gray-800 active:scale-[0.99] transition
+            flex-1 h-14
+            rounded-xl
+            bg-gray-900 text-white text-sm font-normal tracking-[0.04em]
+            hover:bg-gray-800 active:opacity-80 transition-colors
           "
         >
           {isEditing ? '更新' : '保存'}
