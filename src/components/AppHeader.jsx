@@ -2,7 +2,7 @@
  * AppHeader コンポーネント — FloatNote のワードマーク（アプリの顔）
  *
  * 役割:
- *   - アプリ名 "FloatNote" を画面最上部に静かに置く
+ *   - アプリ名「フロートノート」(FloatNote) を画面最上部に静かに置く
  *   - 状態を持たない純粋な表示コンポーネント（プレゼンテーショナル）
  *
  * 設計のポイント（学習メモ）:
@@ -29,28 +29,31 @@ function AppHeader() {
   return (
     /*
      * 外周：画面左右は Calendar の px-5 に揃える。
-     * 上方向 pt-12 (48px) は iOS のステータスバー・ノッチとアプリ名の間の「呼吸」。
-     * 原研哉は「上の余白を惜しまない」——上が広いと画面の重心が下がり、安定感が出る。
-     * pb-0 は Calendar.jsx 側の余白に下方向を委ねるため（二重にしない）。
+     * 上方向 pt-5 (20px) でアプリ名に適度な呼吸を与える。
+     * pb-3 (12px) + border-b でヘッダーとカレンダーを「線」で仕切る。
+     *   - border-gray-200 は EntryModal の border-gray-100 より 1 段濃い。
+     *     アプリ全体の「章題」を仕切る唯一の線として、ここだけ意図的に強めに引く。
+     *   - この下に Calendar 側の pt-4(16px) が続くので、線〜月ナビ間は約 28px の「間（ま）」になる。
      */
-    <div className="px-5 pt-12 pb-0">
+    <div className="px-5 pt-5 pb-3 border-b border-gray-200">
       {/*
        * ワードマーク本体。
        * <h1> にしない理由：このアプリはカレンダーが主コンテンツ。
        * アプリ名は「文書の見出し（h1）」ではなく「ロゴ（装飾的表示）」。
-       * スクリーンリーダーには role="img" + aria-label で「FloatNote という画像（印）」と伝える。
+       * スクリーンリーダーには role="img" + aria-label で「フロートノートという印」と伝える。
+       *   可視テキスト（フロートノート）と aria-label を一致させ、読み上げと表示をズラさない
+       *   （WCAG: Label in Name の考え方）。
        */}
-      <div aria-label="FloatNote" role="img">
+      <div aria-label="フロートノート" role="img">
         {/*
-         * 英語ワードマーク "FloatNote"
+         * カタカナのワードマーク「フロートノート」
          *   - text-sm           : 月ナビ（text-base）より小さく。額縁はコンテンツより主張しない
-         *   - font-light        : 細いウェイトで欧文に繊細さを出す（原研哉の「か細いが確かにある」）
-         *   - tracking-[0.2em]  : 広い字間で「タイトル」ではなく「印（しるし）」にする（MUJI のロゴ組み感）
+         *   - font-light        : カタカナでも細字にして主張を抑える（原研哉の「か細いが確かにある」）
+         *   - tracking-[0.2em]  : 広い字間でカタカナを「タイトル」ではなく「印（しるし）」として組む
          *   - text-gray-900     : 小さく細い分、最も濃い色でコントラストを確保し可読性を担保
-         *   - 大文字化（uppercase）はしない : "FloatNote" の F/N のキャピタルの字形を活かす
          */}
         <span className="text-sm font-light tracking-[0.2em] text-gray-900">
-          FloatNote
+          フロートノート
         </span>
       </div>
     </div>
