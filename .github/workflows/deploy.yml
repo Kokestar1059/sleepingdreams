@@ -1,0 +1,70 @@
+# GitHub Pages へ自動デプロイするワークフロー。
+#
+# 仕組み（学習メモ）:
+#   - main ブランチに push されるたびに発火する。
+#   - build ジョブで Vite を本番ビルドし、出来上がった dist/ を「Pages 用の成果物」として上げる。
+#   - deploy ジョブがその成果物を GitHub Pages に公開する。
+#   - これにより「dist/ をコミットせずに」公開できる（dist/ は .gitignore のまま）。
+#
+# 事前にブラウザ操作が 1 度だけ必要:
+#   リポジトリの Settings → Pages → Build and deployment → Source を
+#   「GitHub Actions」に設定する。以降は push するだけで自動デプロイされる。
+
+name: Deploy to GitHub Pages
+
+on:
+  # main への push で自動実行
+  push:
+    branches: [main]
+  # Actions タブから手動実行もできるようにする
+  workflow_dispatch:
+
+# GITHUB_TOKEN に Pages へデプロイする権限を与える
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時に複数デプロイが走らないよう直列化する（途中のものはキャンセルしない）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Vite の出力ディレクトリ
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
