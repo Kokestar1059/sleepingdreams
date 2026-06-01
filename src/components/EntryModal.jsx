@@ -137,7 +137,7 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
     // 学習メモ:
     //   window.confirm はブラウザ標準のダイアログ。
     //   Phase 1 では十分。Phase 2 以降で見た目を整えたい場合は自前のカスタムダイアログに置換する。
-    const ok = window.confirm('このエントリーを削除しますか？')
+    const ok = window.confirm('このメモを消しますか？')
     if (!ok) return
     onDelete(editingEntry.id)
     setView('list')
@@ -418,7 +418,7 @@ function FormView({
               hover:text-red-400 active:opacity-60 transition-colors
             "
           >
-            このエントリーを削除
+            このメモを消す
           </button>
         )}
       </div>
