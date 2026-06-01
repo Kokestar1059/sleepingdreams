@@ -72,7 +72,9 @@ function Calendar() {
     // 外周余白（原研哉トーン）:
     //   px-4 py-6 → px-5 py-8 に広げ、画面の縁に「間（ま）」を作る。
     //   外周が広いほど「中に何かが宿っている」静けさが生まれる。
-    <div className="w-full max-w-md mx-auto px-5 py-8">
+    //   上方向は AppHeader（pt-12 + pb-0）が呼吸を確保するため、ここは pt-4 に抑える。
+    //   AppHeader の pb-0 と合わさり、アプリ名と月ナビの間に 16px の「間（ま）」が生まれる。
+    <div className="w-full max-w-md mx-auto px-5 pt-4 pb-8">
       <Header currentMonth={currentMonth} onPrev={handlePrev} onNext={handleNext} />
 
       {/*
