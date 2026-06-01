@@ -69,23 +69,35 @@ function Calendar() {
   const entriesForSelectedDate = selectedDateKey ? getEntriesByDate(selectedDateKey) : []
 
   return (
-    <div className="w-full max-w-md mx-auto px-4 py-6">
+    // 外周余白（原研哉トーン）:
+    //   px-4 py-6 → px-5 py-8 に広げ、画面の縁に「間（ま）」を作る。
+    //   外周が広いほど「中に何かが宿っている」静けさが生まれる。
+    <div className="w-full max-w-md mx-auto px-5 py-8">
       <Header currentMonth={currentMonth} onPrev={handlePrev} onNext={handleNext} />
 
-      {/* 曜日ヘッダー（日〜土） */}
-      <div className="grid grid-cols-7 mb-1">
+      {/*
+        曜日ヘッダー（日〜土）
+          - mb-1 → mb-2: 曜日ラベルと日付グリッドの間を少し開けてグルーピングを明確に
+          - text-gray-400 → text-gray-300 + tracking: 曜日は補助情報。さらに引いて
+            日付数字を前に出す。字間を少し足して整える。
+      */}
+      <div className="grid grid-cols-7 mb-2">
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="text-center text-xs text-gray-400 py-2"
+            className="text-center text-xs text-gray-300 tracking-[0.06em] py-2"
           >
             {label}
           </div>
         ))}
       </div>
 
-      {/* 日付グリッド本体 */}
-      <div className="grid grid-cols-7 gap-1">
+      {/*
+        日付グリッド本体
+          gap-1 → gap-0: セル間の隙間をなくしてタップ領域を最大化（誤タップ防止）。
+          視覚的な境界は背景色のホバー変化だけで表現する（線を消すのが原研哉）。
+      */}
+      <div className="grid grid-cols-7 gap-0">
         {weeks.flat().map((cell) => (
           <CalendarDay
             key={cell.dateKey}

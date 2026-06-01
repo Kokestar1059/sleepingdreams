@@ -23,7 +23,7 @@ import { formatYearMonth } from '../utils/dateUtils'
 
 function Header({ currentMonth, onPrev, onNext }) {
   return (
-    <header className="flex items-center justify-between mb-4">
+    <header className="flex items-center justify-between mb-6">
       {/*
         前月ボタン
           - aria-label : スクリーンリーダー用に役割を明示
@@ -45,8 +45,15 @@ function Header({ currentMonth, onPrev, onNext }) {
         <span className="text-xl leading-none">‹</span>
       </button>
 
-      {/* 中央：現在表示中の月見出し */}
-      <h2 className="text-lg font-semibold tracking-wide text-gray-900">
+      {/*
+        中央：現在表示中の月見出し
+        学習メモ（原研哉トーン）:
+          日本語のシステムフォントは元々ウェイトが重いので、font-semibold で太らせず
+          font-normal のまま字間（tracking）を広げて「存在感」を出す。
+          tracking-[0.12em] は Tailwind v4 の任意値構文。デフォルトの tracking-wide(0.025em)
+          は欧文前提で日本語にはほぼ効かないため、直接 0.12em を指定して呼吸感を作る。
+      */}
+      <h2 className="text-base font-normal tracking-[0.12em] text-gray-900">
         {formatYearMonth(currentMonth)}
       </h2>
 
