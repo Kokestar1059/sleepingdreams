@@ -42,10 +42,10 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
 
-      // public/ にある“precache 対象外だが配布したい”静的ファイルを明示しておく。
-      // （PNG アイコンは下の injectManifest.globPatterns で precache されるので、ここでは
-      //   ブラウザのタブ用 favicon と iOS 用アイコンを取りこぼさないよう列挙する）
-      includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
+      // 補足: includeAssets（public 配下の追加ファイルを precache に明示する逃げ道）は
+      // 使っていない。favicon.svg / apple-touch-icon などは、下の
+      // injectManifest.globPatterns（**/*.{svg,png,...}）がビルド出力をまとめて拾うため
+      // 既に precache 済みで、明示は不要だから（書くと二重で紛らわしくなる）。
 
       // Web App Manifest（このオブジェクトから manifest.webmanifest が生成され、
       // <link rel="manifest"> も index.html に自動で差し込まれる）。
@@ -90,10 +90,13 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
       },
 
-      // 開発時（npm run dev）にも SW/manifest を有効化して、インストール導線や
-      // 更新フローをローカルで確認できるようにする。
+      // dev（npm run dev）では SW を無効にしておく（既定 false）。
+      // 理由: dev で SW を動かすとキャッシュが絡み「直したのに反映されない」混乱が
+      //   起きやすい。PWA / SW / インストール導線の動作確認は、実際の本番ビルドを
+      //   配信する `npm run preview` で行うのが確実（dev は UI 開発に専念させる）。
+      //   検証したいときだけ一時的に true にする。
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
     }),
   ],

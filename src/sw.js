@@ -36,18 +36,26 @@ cleanupOutdatedCaches()
 // --- アプリの外枠を precache ---
 // self.__WB_MANIFEST は injectManifest がビルド時に
 // 「[{url, revision}, ...]（= 外枠ファイル一覧）」へ置き換えてくれるプレースホルダ。
-// 中身は vite.config.js の workbox.globPatterns で決まる。
+// 中身は vite.config.js の injectManifest.globPatterns で決まる。
 precacheAndRoute(self.__WB_MANIFEST)
 
 // --- SPA 用のナビゲーション・フォールバック ---
 // 未知のパスへ“画面遷移”したときは、precache 済みの index.html を返す。
-// ただし下記 denylist に当たるものは対象外＝ネットワークへ素通しする：
-//   - /auth/ … OAuth コールバック等
-//   - supabase.co / accounts.google.com … 認証・データの本体（キャッシュ厳禁）
-// これにより「常にサーバーへ取りに行く＝古いデータ・ログインループを起こさない」を担保する。
-// base 配下の index を指すよう、絶対パスは /sleepingdreams/ 始まりにする。
-const navigationHandler = createHandlerBoundToURL('/sleepingdreams/index.html')
-const navigationRoute = new NavigationRoute(navigationHandler, {
-  denylist: [/^\/auth\//, /supabase\.co/, /accounts\.google\.com/],
-})
-registerRoute(navigationRoute)
+// （このアプリは実質 1 ページなので主に保険。start_url 自体も precache 済み）
+//
+// 返す index のパスは import.meta.env.BASE_URL（= vite.config.js の base、
+// ビルド時に '/sleepingdreams/' へ静的置換される）から組み立てる。
+// こうすると base を変えても SW 側を直さずに済む（パスのハードコードを避ける）。
+//
+// なぜ Supabase / Google を除外する denylist を書かないか:
+//   そもそもこの NavigationRoute に “データ通信” は到達しないため、書いても無意味。
+//   - NavigationRoute は mode:'navigate'（=ブラウザのページ遷移）にだけ反応する。
+//     Supabase へのデータ API は fetch(mode:'cors') なので対象外＝素通り＝キャッシュされない。
+//   - Google ログインへのリダイレクトは別オリジン。precache に無いので SW は何もしない。
+//   ＝「アプリシェルだけ precache・データ/認証は常にネットワーク」が自動的に成立する。
+//   （NavigationRoute の denylist はパス部分 pathname+search にしかマッチせず、
+//     ホスト名 supabase.co 等を書いても効かない。誤解を招くので最初から書かない方針）
+const navigationHandler = createHandlerBoundToURL(
+  `${import.meta.env.BASE_URL}index.html`,
+)
+registerRoute(new NavigationRoute(navigationHandler))
