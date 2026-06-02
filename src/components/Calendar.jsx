@@ -41,7 +41,9 @@ function Calendar() {
 
   // エントリーの CRUD はカスタムフックに集約。
   // ここから受け取った関数をそのままモーダルに props で渡せばよい。
-  const { entries, getEntriesByDate, createEntry, updateEntry, deleteEntry } = useEntries()
+  // loading は Supabase からの初回読み込み中フラグ（Phase 2 で追加）。
+  const { entries, loading, getEntriesByDate, createEntry, updateEntry, deleteEntry } =
+    useEntries()
 
   // 月ナビゲーション
   const handlePrev = () => setCurrentMonth((prev) => addMonths(prev, -1))
@@ -76,6 +78,21 @@ function Calendar() {
     //   AppHeader の pb-3(12px) と合わせて、ヘッダー下線〜月ナビ間が約 28px の「間（ま）」になる。
     <div className="w-full max-w-md mx-auto px-5 pt-4 pb-8">
       <Header currentMonth={currentMonth} onPrev={handlePrev} onNext={handleNext} />
+
+      {/*
+        初回ロード中インジケータ。
+          - Supabase からエントリーを取得し終えるまでの短い間だけ出す。
+          - ドット（記録の有無）は読み込み完了まで確定しないため、
+            「まだ判定中」であることを薄く伝えておくと、寝起きでも誤解しない。
+          - 高さ 0 ではなく一定の行を確保し、消えるときにレイアウトが飛ばないようにする。
+          - aria-live="polite" でスクリーンリーダーにも状態変化を控えめに伝える。
+      */}
+      <div
+        aria-live="polite"
+        className="h-5 text-center text-xs tracking-[0.08em] text-gray-300"
+      >
+        {loading ? '読み込み中…' : ''}
+      </div>
 
       {/*
         曜日ヘッダー（日〜土）

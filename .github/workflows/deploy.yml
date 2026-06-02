@@ -47,6 +47,16 @@ jobs:
         run: npm ci
 
       - name: Build
+        # Vite は import.meta.env.VITE_* を「ビルド時」に静的に埋め込む。
+        # ローカルの .env.local は Git に含めない（gitignore）ため CI には存在しない。
+        # そこで GitHub Secrets に登録した値を env として注入し、ビルドに焼き込む。
+        #   - この 2 変数は Publishable key（公開前提）と URL なので、公開バンドルに
+        #     含まれること自体は設計通り（守りは Supabase の RLS）。
+        #   - Secrets を使う狙いは秘匿ではなく「ソース直書きの回避・値の一元管理」。
+        #   - 未登録だと空文字になり、supabaseClient.js のフォールバック（ダミー値）が入る。
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
 
       - name: Setup Pages
