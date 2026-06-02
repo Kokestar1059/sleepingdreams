@@ -61,7 +61,7 @@ function AuthScreen({ onSignIn }) {
        * 「夢・アイデア・気づき」を拾うアプリだと一行で伝える（用途拡大を反映）。
        */}
       <p className="mt-4 text-center text-xs font-light leading-relaxed tracking-wide text-gray-400">
-        浮かぶ断片を、そっと書き留める。
+        昨晩見た夢を書き留める。
       </p>
 
       {/*
@@ -88,9 +88,9 @@ function AuthScreen({ onSignIn }) {
        * 主役（ボタン）より一段薄い text-gray-300 で、読みたい人だけ読める存在感に。
        */}
       <p className="mt-8 text-center text-[11px] font-light leading-relaxed text-gray-300">
-        ログインすると、あなたのアカウントだけに
+        ログインして
         <br />
-        記録が保存されます。
+        記録が保存しましょう。
       </p>
     </div>
   )
