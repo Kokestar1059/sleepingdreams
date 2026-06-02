@@ -7,6 +7,8 @@ node_modules/
 dist/
 build/
 .vite/
+# vite-plugin-pwa が dev モード（devOptions.enabled）で吐く一時的な SW 生成物
+dev-dist/
 
 # Environment variables (NEVER commit secrets!)
 .env

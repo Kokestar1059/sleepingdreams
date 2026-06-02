@@ -25,6 +25,7 @@
 | UIフレームワーク | **React**（関数コンポーネント + Hooks） | 学習目的のため `JavaScript`(.jsx)。TypeScriptは使わない |
 | スタイリング | **Tailwind CSS** | Vite公式プラグイン経由でセットアップ |
 | ビルドツール | **Vite** | 高速・設定が少ない |
+| PWA | **vite-plugin-pwa**（Workbox） | インストール可能化＋アプリシェルの precache。injectManifest 方式で `src/sw.js` を自作 |
 | データ保存（Phase 1） | **localStorage** | ブラウザ内のみ |
 | データ保存（Phase 2） | **Supabase**（PostgreSQL） | 無料枠で十分 |
 | 認証（Phase 2） | **Supabase Auth**（Google OAuth） | |
@@ -215,6 +216,22 @@ Supabase の `entries` テーブルに以下のカラムでマッピングする
 | **メインカラー** | `gray-900`（文字）/ `gray-50`（背景）/ `gray-300`（ボーダー） |
 | **アクセントカラー** | `gray-800` or `black`（ボタン・ドット） |
 | **モーダル** | 画面中央に浮かぶカード形式。背景は半透明スクリム + `backdrop-blur` でブラー |
+
+---
+
+## PWA 方針
+
+スマホのホーム画面から全画面・高速起動できるようにする（主用途：ベッドで片手・寝起き）。
+
+| 項目 | 方針 |
+|------|------|
+| **スコープ** | **インストール可能まで**。オフラインでのデータ閲覧・書き込み・認証キャッシュは**対象外**（古いデータ表示／ログインループの事故を避ける。踏み込むなら別 Issue + ADR） |
+| **生成方式** | `vite-plugin-pwa` の **injectManifest**。`src/sw.js` を自作する（リポジトリの絶対パスに `'`（`G's`）が含まれ、自動生成 generateSW が壊れるため） |
+| **キャッシュ対象** | **アプリシェルのみ**（JS/CSS/HTML/アイコン）を precache。**Supabase / Google への通信はキャッシュしない**（SW にキャッシュ戦略を一切登録しない＝NetworkOnly 相当。ナビゲーションfallbackも `supabase.co`/`accounts.google.com`/`/auth/` を denylist で除外） |
+| **更新** | `registerType: 'autoUpdate'`。新デプロイ検知で即入れ替え（`skipWaiting` + `clientsClaim`）→ 次回起動で最新 |
+| **manifest** | name/short_name: FloatNote、`display: standalone`、`orientation: portrait`、`scope`/`start_url` は base `/sleepingdreams/` に一致させる（ズレると起動時404）。theme/background は白基調（`#f9fafb`） |
+| **アイコン** | モノトーン（近黒背景＋オフホワイトの三日月）。192/512/maskable/apple-touch-icon。`scripts/generate-icons.mjs`（sharp）で1枚のSVG原図から再生成可能 |
+| **セーフエリア** | `viewport-fit=cover` + CSS `env(safe-area-inset-*)`。ヘッダー上端とページ下端をノッチ/ホームインジケータから守る |
 
 ---
 
