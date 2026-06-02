@@ -3,7 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover:
+        ノッチ／ホームインジケータのある端末で、画面の端まで（セーフエリアの下まで）
+        描画を広げる宣言。これを付けて初めて CSS の env(safe-area-inset-*) が効く。
+        standalone（ホーム画面から全画面起動）で端まで使うために必要。
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+
+    <!--
+      PWA まわりのメタ情報。
+      - theme-color … standalone 時の OS ツールバー等の色。アプリ本体（白基調）に合わせる。
+      - apple-mobile-web-app-capable … iOS で“全画面アプリ”として起動させる（Safari の UI を消す）。
+        manifest の display:standalone だけでは iOS が拾わないため、保険として明示する。
+      - status-bar-style=default … ステータスバーを白地に黒文字（既存の白い画面と整合）。
+      - apple-mobile-web-app-title … ホーム画面に出るアプリ名。
+      - apple-touch-icon … iOS ホーム画面用アイコン（iOS は manifest の icons を見ない）。
+        先頭が "/" のパスは Vite がビルド時に base（/sleepingdreams/）を補ってくれる。
+    -->
+    <meta name="theme-color" content="#f9fafb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FloatNote" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+
     <title>FloatNote — 夢も、気づきも。</title>
   </head>
   <body>

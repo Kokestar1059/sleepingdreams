@@ -27,11 +27,17 @@
 function AppHeader({ user, onSignOut }) {
   return (
     /*
-     * 外周：画面左右は Calendar の px-5 に揃える。上 pt-5 / 下 pb-3 + 下線で「章題」を仕切る。
+     * 外周：画面左右は Calendar の px-5 に揃える。上 pt / 下 pb-3 + 下線で「章題」を仕切る。
      * flex + justify-between で「ワードマーク（左）」と「ログアウト（右）」を両端に置く。
      * items-center で両者の縦位置を中央に揃える。
+     *
+     * pt-[max(1.25rem,env(safe-area-inset-top))]:
+     *   ヘッダーは画面最上部にある＝standalone 起動だとステータスバー（時計/電波）と
+     *   重なる恐れがある。env(safe-area-inset-top) はノッチ等の“安全な余白”。
+     *   max() で「通常時は従来どおり 1.25rem（=pt-5）、ノッチ端末ではその分だけ広げる」。
+     *   こうすると普通のブラウザでは見た目が変わらず、全画面起動時だけ被りを避けられる。
      */
-    <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-200">
+    <div className="flex items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 border-b border-gray-200">
       {/*
        * ワードマーク本体。
        * <h1> にしない理由：このアプリはカレンダーが主コンテンツ。

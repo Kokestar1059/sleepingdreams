@@ -37,7 +37,9 @@ function App() {
   // 記録画面（Calendar）には到達させない＝データを完全に分離する入口。
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900">
+      // pb-[env(safe-area-inset-bottom)]: standalone 起動時、画面最下部の
+      // ホームインジケータ（iPhone の横バー）と中身が重ならないよう下に余白を確保する。
+      <div className="min-h-screen bg-gray-50 text-gray-900 pb-[env(safe-area-inset-bottom)]">
         <AuthScreen onSignIn={signInWithGoogle} />
       </div>
     )
@@ -47,7 +49,9 @@ function App() {
   // 本体（ヘッダー + カレンダー）を表示する。
   // AppHeader にユーザー情報とログアウト関数を渡し、ヘッダー右側に出す。
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    // pb-[env(safe-area-inset-bottom)]: 上のヘッダーで top のセーフエリアを吸収しているのと対に、
+    // 最下部もホームインジケータ分の余白を足して、全画面起動でも端が隠れないようにする。
+    <div className="min-h-screen bg-gray-50 text-gray-900 pb-[env(safe-area-inset-bottom)]">
       <AppHeader user={user} onSignOut={signOut} />
       <Calendar />
     </div>
