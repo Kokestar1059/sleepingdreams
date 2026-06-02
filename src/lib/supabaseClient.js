@@ -42,5 +42,16 @@ if (!supabaseUrl || !supabasePublishableKey) {
 
 // アプリ全体で共有する単一のクライアント。
 // auth オプションは Supabase のデフォルトに任せる（セッションを localStorage に保存し、
-// トークンを自動更新する）。OAuth の細かい設定は認証実装（#11）で詰める。
-export const supabase = createClient(supabaseUrl, supabasePublishableKey)
+// トークンを自動更新する）。OAuth の細かい設定は useAuth（#11）側で詰める。
+//
+// ■ なぜフォールバックの仮値を渡すのか
+//   createClient(url, key) は url が空（undefined）だと「supabaseUrl is required」と
+//   即座に throw する。これはモジュール読み込み時に起きるため、App が import した瞬間に
+//   アプリ全体が真っ白（白画面）になってしまう。
+//   鍵が未設定でも「ログイン画面までは描画して、押した時に分かりやすく失敗する」方が親切なので、
+//   未設定時は構文上だけ妥当なダミー値を渡して throw を回避する（上で warn 済み）。
+//   ※ ダミーの URL では実際の通信は失敗するので、ログインするには .env.local の設定が必須。
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabasePublishableKey || 'sb_publishable_placeholder'
+)
