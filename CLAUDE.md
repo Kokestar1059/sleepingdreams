@@ -77,21 +77,26 @@ npm run dev
 - 検索機能
 - AI・音声入力
 - ダークモード
-- **JSONエクスポート / インポート機能** → Phase 1 は試作品と割り切り、消失リスクを許容。Phase 2 で localStorage → Supabase 移行のタイミングで実装する。
+- **JSONエクスポート / インポート機能** → Phase 1 は試作品と割り切り、消失リスクを許容。Supabase 移行後はサーバー側で永続化されるため、必要になった時点で着手する見送り扱い（Phase 2 参照）。
 
 ---
 
-### Phase 2 — Supabase 連携
-> データをクラウドに移行し、複数デバイス・複数ユーザーで使えるようにする。
+### Phase 2 — Supabase 連携（完了）
+> データをクラウドに移行し、複数デバイス・複数ユーザー（各自分離）で使えるようにする。
 
-**実装する機能：**
-- [ ] Supabase プロジェクトのセットアップ
-- [ ] Google OAuth ログイン（Supabase Auth）
-- [ ] エントリーデータを Supabase の `entries` テーブルに保存
-- [ ] Row Level Security（RLS）：自分のデータだけ読み書き可能にする
-- [ ] **JSONエクスポート機能**（データポータビリティ・バックアップ用途）
-- [ ] **localStorage → Supabase へのデータ移行ボタン**（Phase 1 ユーザー向け。JSONインポートと共通実装で）
-- [ ] Vercel へのデプロイ（環境変数で APIキーを管理）
+**実装した機能：**
+- [x] Supabase プロジェクトのセットアップ
+- [x] Google OAuth ログイン（Supabase Auth）
+- [x] エントリーデータを Supabase の `entries` テーブルに保存（楽観的更新）
+- [x] Row Level Security（RLS）：自分のデータだけ読み書き可能にする
+- [x] GitHub Pages デプロイへの鍵注入（GitHub Secrets → Actions ビルドで `VITE_*` を焼き込む）
+
+**見送り（必要になったら着手）：**
+- localStorage → Supabase 移行ボタン：移行すべき Phase 1 の実データが無いため不要と判断。
+- JSONエクスポート／インポート：データの永続性は Supabase 側で確保済みのため優先度を下げる。
+  実利用でバックアップ需要が出たら「エクスポートのみ」から着手する。
+- Vercel デプロイ：AI 機能を入れる Phase 3 で GitHub Pages から切り替える
+  （OpenAI の Secret key をサーバー側に隠す必要が出るため。Pages=課題用 / Vercel=実用 の2系統）。
 
 ---
 
