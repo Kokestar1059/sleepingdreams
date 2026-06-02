@@ -90,7 +90,7 @@ function AuthScreen({ onSignIn }) {
       <p className="mt-8 text-center text-[11px] font-light leading-relaxed text-gray-300">
         ログインして
         <br />
-        記録が保存しましょう。
+        記録を保存しましょう。
       </p>
     </div>
   )
