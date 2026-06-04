@@ -39,3 +39,6 @@ yarn-error.log*
 
 # Test coverage
 coverage/
+
+# check-deploy.mjs（Playwright 白画面チェック）が吐くスクショ等の生成物
+scripts/.deploy-check/

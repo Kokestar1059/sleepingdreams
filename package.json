@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "check:deploy": "node scripts/check-deploy.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
@@ -26,6 +27,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "playwright": "^1.60.0",
     "sharp": "^0.34.5",
     "vite": "^8.0.12",
     "vite-plugin-pwa": "^1.3.0",
