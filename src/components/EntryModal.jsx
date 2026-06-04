@@ -42,6 +42,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 
 /**
  * @param {Object} props
@@ -354,6 +355,41 @@ function FormView({
   onCancel,
   onDelete,
 }) {
+  // 音声認識フック。確定文（final）が来るたびに onResult が呼ばれる。
+  //   onChangeBody は親の setBody そのものなので、更新関数 (prev => ...) を渡せる。
+  //   こうすると「直前の本文」を確実に受け取れる（非同期で何度も追記しても取りこぼさない）。
+  //   日本語は単語間にスペースを入れないので、確定文はそのまま連結する。
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    interimTranscript,
+    error: speechError,
+    start: startListening,
+    stop: stopListening,
+  } = useSpeechRecognition({
+    lang: 'ja-JP',
+    onResult: (chunk) => {
+      const text = chunk.trim()
+      if (!text) return
+      onChangeBody((prev) => (prev ? prev + text : text))
+    },
+  })
+
+  // マイクボタンのタップ: 聞き取り中なら止める、そうでなければ始める（トグル）。
+  const handleToggleMic = () => {
+    if (isListening) stopListening()
+    else startListening()
+  }
+
+  // エラー表示の文言を決める。'no-speech'(無音) や 'aborted'(中断) は
+  //   日常的に起きるので黙殺し、ユーザーが対処できるものだけ言葉にする。
+  const speechErrorMessage =
+    speechError === 'not-allowed' || speechError === 'service-not-allowed'
+      ? 'マイクの使用が許可されていません'
+      : speechError && speechError !== 'no-speech' && speechError !== 'aborted'
+        ? '音声をうまく認識できませんでした'
+        : null
+
   return (
     <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
       {/* 入力エリア。余白 px-4 py-3 space-y-3 → px-6 py-5 space-y-4 でゆったりさせる */}
@@ -379,9 +415,47 @@ function FormView({
         </div>
 
         <div>
-          <label htmlFor="entry-body" className="block text-xs text-gray-400 tracking-[0.06em] mb-2">
-            内容
-          </label>
+          {/*
+            ラベル行: 左にラベル「内容」、右に音声入力ボタン。
+              非対応ブラウザ（isSpeechSupported=false）ではボタン自体を出さない。
+              出しても押せないものを見せると寝ぼけた指が迷うため、存在ごと消すのが親切。
+          */}
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="entry-body" className="block text-xs text-gray-400 tracking-[0.06em]">
+              内容
+            </label>
+            {isSpeechSupported && (
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                aria-label={isListening ? '音声入力を止める' : '音声入力を始める'}
+                aria-pressed={isListening}
+                className={`
+                  h-11 px-3 -my-1
+                  inline-flex items-center gap-1.5
+                  rounded-full text-xs tracking-[0.04em]
+                  transition-colors
+                  ${
+                    isListening
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-400 hover:bg-gray-50 active:opacity-60'
+                  }
+                `}
+              >
+                {/*
+                  アイコンは原研哉トーンに合わせ単色のミニマルなマイク。
+                    聞き取り中は「●（録音中）」を点滅させ、テキストも「停止」に変える。
+                    点滅は Tailwind 標準ユーティリティ animate-pulse（ゆっくり明滅）で控えめに。
+                */}
+                {isListening ? (
+                  <span className="h-2 w-2 rounded-full bg-white animate-pulse" aria-hidden="true" />
+                ) : (
+                  <MicIcon />
+                )}
+                {isListening ? '停止' : '音声'}
+              </button>
+            )}
+          </div>
           {/*
             夢の内容を書く欄は「入力フォーム」ではなく「日記のページ」として体験させたい。
               - text-sm → text-base leading-relaxed: 16px + ゆったり行間で寝起きでも読みやすい
@@ -402,6 +476,22 @@ function FormView({
               focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-400
             "
           />
+
+          {/*
+            音声入力のフィードバック行（高さ固定で出し入れしてもレイアウトが跳ねないように）。
+              優先順位: エラー > 途中経過 > 聞き取り中の案内。
+              - 確定文は textarea に既に入っているので、ここには「未確定の途中経過」だけ出す。
+              - iOS Safari は途中経過が来ないことがあるので、その時は「聞き取り中…」を出す。
+          */}
+          <div className="mt-2 min-h-[1.25rem] text-xs tracking-[0.02em]">
+            {speechErrorMessage ? (
+              <span className="text-red-300">{speechErrorMessage}</span>
+            ) : isListening ? (
+              <span className="text-gray-400">
+                {interimTranscript || '聞き取り中…'}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {/*
@@ -457,6 +547,35 @@ function FormView({
         </button>
       </div>
     </form>
+  )
+}
+
+/*
+ * MicIcon — 音声入力ボタンのマイクアイコン（単色・ミニマル）
+ *   原研哉トーンに合わせ、線だけの静かなアイコンにする。
+ *   currentColor を使うことで、親ボタンの文字色（gray-400 / white）をそのまま継承する。
+ *   aria-hidden: 意味はボタンの aria-label が伝えるので、アイコンは読み上げ対象外にする。
+ */
+function MicIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* マイク本体（縦長の丸） */}
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      {/* マイクを支える受け皿（U字） */}
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      {/* スタンドの縦棒 */}
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
   )
 }
 

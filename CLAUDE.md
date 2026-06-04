@@ -106,7 +106,11 @@ npm run dev
 > 半分寝ながらでも記録できる体験を作る。
 
 **実装する機能：**
-- [ ] Web Speech API で音声入力（マイクボタン）
+- [x] Web Speech API で音声入力（マイクボタン）
+  - **方針：** final（確定文）のみ本文へ追記、interim（途中経過）はプレビュー表示のみ
+  - iPhone Safari 前提で `continuous=false`（無音で自動停止・連続自動リスタートはしない＝再開はタップ）
+  - 非対応ブラウザはマイクボタン自体を非表示（グレースフル）。ロジックは `useSpeechRecognition.js` に分離
+  - **要HTTPS**：Web Speech は secure context 必須。実機検証は Vercel(HTTPS) で行う（LAN の http://IP では使えない）
 - [ ] OpenAI GPT API でテキストを自然な文章に整形
   - **方針：** 支離滅裂な入力を「過剰に解釈せず」軽く整理するだけ
   - ユーザーが話した内容の意味を変えない・新しい情報を補完しない
