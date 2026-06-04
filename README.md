@@ -8,7 +8,7 @@ FloatNote（フロートノート）— 夢日記＋メモアプリ
 
 ## ③アプリのデプロイURL
 - 課題提出用（GitHub Pages・静的・AI なし）: https://kokestar1059.github.io/sleepingdreams/
-- 実用（Vercel・将来の AI 機能用）: Vercel 連携後に発行される URL（`https://<project>.vercel.app`）
+- 実用（Vercel・将来の AI 機能用）: https://sleepingdreams.vercel.app/
 
 ### デプロイ構成（2 系統の住み分け）
 同じ `main` ブランチを **GitHub Pages** と **Vercel** がそれぞれ独立に監視する別パイプラインで、共存して動く。
