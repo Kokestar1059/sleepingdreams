@@ -91,13 +91,14 @@ npm run dev
 - [x] エントリーデータを Supabase の `entries` テーブルに保存（楽観的更新）
 - [x] Row Level Security（RLS）：自分のデータだけ読み書き可能にする
 - [x] GitHub Pages デプロイへの鍵注入（GitHub Secrets → Actions ビルドで `VITE_*` を焼き込む）
+- [x] **Vercel デプロイ（Pages と 2 系統で併用）**：同じ `main` を Pages（課題用・`/sleepingdreams/`）と
+  Vercel（実用・`/`）が独立に監視。`vite.config.js` の `base` を `process.env.VERCEL` で出し分け。
+  鍵は Vercel ダッシュボードの環境変数で管理。判断は ADR-0002。（実用 URL: https://sleepingdreams.vercel.app/）
 
 **見送り（必要になったら着手）：**
 - localStorage → Supabase 移行ボタン：移行すべき Phase 1 の実データが無いため不要と判断。
 - JSONエクスポート／インポート：データの永続性は Supabase 側で確保済みのため優先度を下げる。
   実利用でバックアップ需要が出たら「エクスポートのみ」から着手する。
-- Vercel デプロイ：AI 機能を入れる Phase 3 で GitHub Pages から切り替える
-  （OpenAI の Secret key をサーバー側に隠す必要が出るため。Pages=課題用 / Vercel=実用 の2系統）。
 
 ---
 
