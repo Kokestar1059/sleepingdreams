@@ -5,9 +5,19 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// GitHub Pages のサブパス。manifest の scope / start_url もこれに揃える必要がある
-// （ズレると、ホーム画面から起動した瞬間に 404 する）。base と一箇所で共有しておく。
-const BASE = '/sleepingdreams/'
+// 公開パスの起点（base）をデプロイ先で出し分ける。
+//   - GitHub Pages（課題提出用）: プロジェクトサイトは
+//       https://<ユーザー名>.github.io/sleepingdreams/
+//     というサブパス配信なので base は '/sleepingdreams/'。
+//   - Vercel（実用・将来 AI 用）: 独自ドメインの直下＝ルート '/' で配信。
+//
+// Vercel はビルド時に環境変数 VERCEL=1 を自動でセットするので、それだけで判定できる
+// （GitHub Actions 側には VERCEL が無いので、Pages ビルドは従来どおりサブパスのまま無傷）。
+//
+// この BASE 1 箇所を切り替えるだけで、下の manifest の scope / start_url も、
+// src/sw.js が参照する import.meta.env.BASE_URL も丸ごと追従する設計にしてある
+// （= PWA 全体が base に連動するので、デプロイ先ごとに散らばった修正が不要）。
+const BASE = process.env.VERCEL ? '/' : '/sleepingdreams/'
 
 // Tailwind CSS v4 は専用 Vite プラグインを使う方式に変わった。
 // （v3 までの PostCSS / tailwind.config.js を使う方式は不要）
