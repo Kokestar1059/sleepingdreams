@@ -43,6 +43,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import MicIcon from './MicIcon'
 
 /**
  * @param {Object} props
@@ -52,15 +53,20 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
  * @param {Function} props.onCreate             ({ entryDate, title, body }) を渡すと新規作成
  * @param {Function} props.onUpdate             (id, { title, body }) で更新
  * @param {Function} props.onDelete             (id) で削除
+ * @param {boolean}  [props.autoVoice=false]    true なら開いた瞬間に新規フォーム＋音声入力を自動開始
  *
  * 注意:
  *   - このコンポーネントは「モーダルが開いている間だけ」マウントされる前提。
  *     親（Calendar）で `selectedDateKey !== null` のときだけ描画する。
  *     こうすると閉→開のたびに内部 state が自動でリセットされる。
+ *   - autoVoice はカレンダー下の「クイック音声 FAB」から開いたときだけ true。
+ *     マウントのたびにリセットされる前提なので、初期 state を props から決めて良い
+ *     （props 変化を useEffect で state に同期する anti-pattern は不要）。
  */
-function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete }) {
+function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, autoVoice = false }) {
   // モーダル内の表示モード： 'list' は一覧、'form' は作成/編集フォーム
-  const [view, setView] = useState('list')
+  // autoVoice のときは一覧を飛ばして、いきなり新規作成フォームから始める。
+  const [view, setView] = useState(autoVoice ? 'form' : 'list')
   // 編集中のエントリー。null なら新規作成モード。
   const [editingEntry, setEditingEntry] = useState(null)
   // フォームの入力値（制御コンポーネント）
@@ -246,6 +252,7 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
             onSubmit={handleSubmit}
             onCancel={() => setView('list')}
             onDelete={handleDelete}
+            autoStartVoice={autoVoice}
           />
         )}
       </div>
@@ -354,6 +361,7 @@ function FormView({
   onSubmit,
   onCancel,
   onDelete,
+  autoStartVoice = false,
 }) {
   // 音声認識フック。確定文（final）が来るたびに onResult が呼ばれる。
   //   onChangeBody は親の setBody そのものなので、更新関数 (prev => ...) を渡せる。
@@ -368,6 +376,10 @@ function FormView({
     stop: stopListening,
   } = useSpeechRecognition({
     lang: 'ja-JP',
+    // クイック音声 FAB から開いたとき（autoStartVoice=true）は、
+    // フックが認識インスタンスを用意でき次第すぐ録音を始める。
+    // 通常の「新規追加」や編集では false なので勝手に始まらない。
+    autoStart: autoStartVoice,
     onResult: (chunk) => {
       const text = chunk.trim()
       if (!text) return
@@ -383,12 +395,28 @@ function FormView({
 
   // エラー表示の文言を決める。'no-speech'(無音) や 'aborted'(中断) は
   //   日常的に起きるので黙殺し、ユーザーが対処できるものだけ言葉にする。
-  const speechErrorMessage =
-    speechError === 'not-allowed' || speechError === 'service-not-allowed'
-      ? 'マイクの使用が許可されていません'
-      : speechError && speechError !== 'no-speech' && speechError !== 'aborted'
-        ? '音声をうまく認識できませんでした'
-        : null
+  //   コードごとに原因が違うので、対処につながるよう種別で文言を変える。
+  const speechErrorMessage = (() => {
+    switch (speechError) {
+      case null:
+      case undefined:
+      case 'no-speech': // 無音で終了（よくある・黙殺）
+      case 'aborted': // 中断（stop/abort・黙殺）
+        return null
+      case 'not-allowed':
+      case 'service-not-allowed':
+        return 'マイクの使用が許可されていません'
+      case 'audio-capture':
+        return 'マイクが見つかりません'
+      case 'network':
+        return '音声認識サーバーに接続できません（ネットワーク/ブラウザ設定を確認）'
+      case 'language-not-supported':
+        return 'この言語の音声認識に対応していません'
+      default:
+        // 未知のコードはそのまま出して原因特定の手がかりにする。
+        return `音声認識エラー: ${speechError}`
+    }
+  })()
 
   return (
     <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
@@ -547,35 +575,6 @@ function FormView({
         </button>
       </div>
     </form>
-  )
-}
-
-/*
- * MicIcon — 音声入力ボタンのマイクアイコン（単色・ミニマル）
- *   原研哉トーンに合わせ、線だけの静かなアイコンにする。
- *   currentColor を使うことで、親ボタンの文字色（gray-400 / white）をそのまま継承する。
- *   aria-hidden: 意味はボタンの aria-label が伝えるので、アイコンは読み上げ対象外にする。
- */
-function MicIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {/* マイク本体（縦長の丸） */}
-      <rect x="9" y="2" width="6" height="11" rx="3" />
-      {/* マイクを支える受け皿（U字） */}
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      {/* スタンドの縦棒 */}
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
   )
 }
 

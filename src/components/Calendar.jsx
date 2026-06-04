@@ -29,8 +29,10 @@ import { useMemo, useState } from 'react'
 import Header from './Header'
 import CalendarDay from './CalendarDay'
 import EntryModal from './EntryModal'
+import MicIcon from './MicIcon'
 import { useEntries } from '../hooks/useEntries'
-import { addMonths, buildMonthGrid, WEEKDAY_LABELS } from '../utils/dateUtils'
+import { isSpeechRecognitionSupported } from '../hooks/useSpeechRecognition'
+import { addMonths, buildMonthGrid, toDateKey, WEEKDAY_LABELS } from '../utils/dateUtils'
 
 function Calendar() {
   // 現在表示中の「月」を管理する state。初期値は今月（実行時の今日）。
@@ -38,6 +40,11 @@ function Calendar() {
 
   // モーダル制御：選択された日付（dateKey）。null ならモーダルは閉じている扱い。
   const [selectedDateKey, setSelectedDateKey] = useState(null)
+
+  // 「クイック音声 FAB から開いたか」のフラグ。
+  //   true のときだけ EntryModal を「新規フォーム＋音声自動開始」モードで開く。
+  //   日付セルから普通に開いたとき（false）は従来どおり一覧表示から始まる。
+  const [openInVoiceMode, setOpenInVoiceMode] = useState(false)
 
   // エントリーの CRUD はカスタムフックに集約。
   // ここから受け取った関数をそのままモーダルに props で渡せばよい。
@@ -49,11 +56,26 @@ function Calendar() {
   const handlePrev = () => setCurrentMonth((prev) => addMonths(prev, -1))
   const handleNext = () => setCurrentMonth((prev) => addMonths(prev, 1))
 
-  // 日付セルがクリックされたとき：その日付でモーダルを開く。
-  const handleSelectDay = (dateKey) => setSelectedDateKey(dateKey)
+  // 日付セルがクリックされたとき：その日付でモーダルを開く（通常モード）。
+  //   FAB 経由ではない普通の開き方なので、音声モードのフラグは下ろしておく。
+  const handleSelectDay = (dateKey) => {
+    setOpenInVoiceMode(false)
+    setSelectedDateKey(dateKey)
+  }
 
-  // モーダルを閉じる
-  const handleCloseModal = () => setSelectedDateKey(null)
+  // クイック音声 FAB：今日の日付で、新規フォーム＋音声自動開始モードで開く。
+  //   toDateKey(new Date()) で「実行時の今日」をローカルタイムゾーン基準の
+  //   "YYYY-MM-DD" にする（CLAUDE.md の日付ルール）。
+  const handleQuickVoice = () => {
+    setOpenInVoiceMode(true)
+    setSelectedDateKey(toDateKey(new Date()))
+  }
+
+  // モーダルを閉じる。音声モードのフラグも一緒に下ろす（次に開くときに残さない）。
+  const handleCloseModal = () => {
+    setSelectedDateKey(null)
+    setOpenInVoiceMode(false)
+  }
 
   // 月グリッド生成
   const weeks = buildMonthGrid(currentMonth)
@@ -128,6 +150,38 @@ function Calendar() {
       </div>
 
       {/*
+        クイック音声 FAB（カレンダー下の余白に置く）。
+          - 寝起きに「カレンダーを操作せず、今日の分をすぐ喋って残す」ための近道。
+            タップ → 今日の新規フォームが開き、その場で録音が始まる。
+          - 音声非対応ブラウザでは出さない（押してもフォームにマイクが無く、誤誘導になるため）。
+          - 円形ボタンは原研哉トーンで主張しすぎないよう、淡く広い影で「紙の上に浮く」質感に。
+            mt-10 で日付グリッドから十分離し、余白（間）の中央にぽつんと置く。
+          - タップターゲットは h-16 w-16(64px) と大きめ。寝ぼけた片手でも外さない。
+          - 下の小さなラベルは案内。text-gray-300 で静かに添える。
+      */}
+      {isSpeechRecognitionSupported && (
+        <div className="mt-10 flex flex-col items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleQuickVoice}
+            aria-label="音声で今日のメモを追加"
+            className="
+              h-16 w-16 rounded-full
+              bg-gray-900 text-white
+              flex items-center justify-center
+              shadow-[0_6px_24px_rgba(0,0,0,0.14)]
+              hover:bg-gray-800 active:opacity-80 transition-colors
+            "
+          >
+            <MicIcon size={24} />
+          </button>
+          <span className="text-[11px] text-gray-300 tracking-[0.1em]">
+            音声でメモ
+          </span>
+        </div>
+      )}
+
+      {/*
         エントリーモーダル。
         selectedDateKey が null のときはコンポーネント自体を描画しない。
         こうすると「閉→開」のたびに毎回マウントされ、内部 state が自動でリセットされる。
@@ -141,6 +195,7 @@ function Calendar() {
           onCreate={createEntry}
           onUpdate={updateEntry}
           onDelete={deleteEntry}
+          autoVoice={openInVoiceMode}
         />
       )}
     </div>

@@ -23,9 +23,13 @@
  *      iOS Safari では途中経過がうまく出ないことがある。なので
  *      「途中経過は画面下にうっすら出すだけ」「本文に書き込むのは確定文だけ」にして、
  *      途中経過が来なくても困らない設計にする。
- *   3) 連続モードの自動リスタートはしない:
- *      continuous=true で放置するとマイクが開きっぱなしになり、iOS では特に不安定。
- *      無音で自動停止したら「もう一度タップして再開」してもらう方が壊れにくい。
+ *   3) 連続モード + 自前の無音タイマーで「小休止では切らない」:
+ *      continuous=false だと一区切りの無音で即終了してしまい、考えながら話すと切れる。
+ *      そこで continuous=true にして小休止では切らず、代わりに「結果が一定時間
+ *      （silenceTimeoutMs）来なかったら自分から stop()」する無音タイマーを持つ。
+ *      これで「話している間は継続・数秒黙ったら自動停止」になり、continuous=true の
+ *      弱点（マイクが開きっぱなし）も無音タイマーが閉じるので塞げる。
+ *      自動リスタート（onend で勝手に start し直す）はしない＝iOS で不安定なため。
  *   4) オフライン不可:
  *      Chrome/Safari の音声認識はサーバー処理。オフラインでは動かない（仕様）。
  */
@@ -40,10 +44,16 @@ const SpeechRecognitionClass =
     ? window.SpeechRecognition || window.webkitSpeechRecognition
     : undefined
 
+// このブラウザで音声認識が使えるか。フックを呼ばずに「対応しているか」だけ
+// 知りたい場面（例: Calendar が音声 FAB を出すか決める）で import して使う。
+export const isSpeechRecognitionSupported = Boolean(SpeechRecognitionClass)
+
 /**
  * @param {Object}   [options]
- * @param {string}   [options.lang='ja-JP'] 認識する言語
- * @param {Function} [options.onResult]     確定テキスト（final）が出るたびに呼ばれる (chunk: string) => void
+ * @param {string}   [options.lang='ja-JP']           認識する言語
+ * @param {number}   [options.silenceTimeoutMs=2000]  この時間だけ結果が来なければ自動停止する（無音タイマー）
+ * @param {boolean}  [options.autoStart=false]        true なら認識インスタンスが用意でき次第すぐ聞き取りを始める
+ * @param {Function} [options.onResult]               確定テキスト（final）が出るたびに呼ばれる (chunk: string) => void
  * @returns {{
  *   isSupported: boolean,        このブラウザで音声認識が使えるか
  *   isListening: boolean,        今マイクが聞き取り中か
@@ -53,9 +63,14 @@ const SpeechRecognitionClass =
  *   stop: () => void,            聞き取り停止
  * }}
  */
-export function useSpeechRecognition({ lang = 'ja-JP', onResult } = {}) {
+export function useSpeechRecognition({
+  lang = 'ja-JP',
+  silenceTimeoutMs = 2000,
+  autoStart = false,
+  onResult,
+} = {}) {
   // クラスが取れたかどうか＝このブラウザで使えるか。レンダーをまたいで一定なので state 不要。
-  const isSupported = Boolean(SpeechRecognitionClass)
+  const isSupported = isSpeechRecognitionSupported
 
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
@@ -81,16 +96,37 @@ export function useSpeechRecognition({ lang = 'ja-JP', onResult } = {}) {
 
     const recognition = new SpeechRecognitionClass()
 
-    // continuous=false: 一区切り喋って無音になったら自動で止まる（iOS で壊れにくい）。
-    recognition.continuous = false
+    // continuous=true: 小休止では切らず聞き続ける（考えながら話しても途切れない）。
+    //   代わりに下の「無音タイマー」で、結果が一定時間来なければ自分から止める。
+    recognition.continuous = true
     // interimResults=true: 途中経過も受け取る（iOS では出ないこともあるが害はない）。
     recognition.interimResults = true
     recognition.lang = lang
+
+    // 無音タイマーの id を持つ箱。setTimeout の戻り値をしまっておき、後で clear する。
+    let silenceTimer = null
+    const clearSilenceTimer = () => {
+      if (silenceTimer !== null) {
+        clearTimeout(silenceTimer)
+        silenceTimer = null
+      }
+    }
+    // タイマーを張り直す（結果が来るたびに呼ぶ）。
+    //   silenceTimeoutMs の間ずっと新しい結果が来なければ＝沈黙とみなして stop()。
+    //   stop() は「今までの認識を確定してから」終わるので、言いかけも取りこぼさない。
+    const armSilenceTimer = () => {
+      clearSilenceTimer()
+      silenceTimer = setTimeout(() => {
+        recognition.stop()
+      }, silenceTimeoutMs)
+    }
 
     // 認識結果が届くたびに呼ばれる。
     //   event.results は「これまでの認識結果の配列」。
     //   event.resultIndex から後ろだけ見れば、今回新しく増えた分を処理できる。
     recognition.onresult = (event) => {
+      // 何か聞こえている＝まだ喋っている、とみなして無音タイマーをリセット。
+      armSilenceTimer()
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -107,14 +143,17 @@ export function useSpeechRecognition({ lang = 'ja-JP', onResult } = {}) {
     }
 
     // 開始時。エラー表示をクリアし、聞き取り中フラグを立てる。
+    //   開始直後に何も喋らないケースに備え、ここでも無音タイマーを張っておく。
     recognition.onstart = () => {
       setError(null)
       setIsListening(true)
+      armSilenceTimer()
     }
 
     // 終了時（自動停止・stop() 呼び出し・エラー後など、必ず最後に呼ばれる）。
-    //   ここで状態を片付けるのが一番確実。途中経過も消す。
+    //   ここで状態を片付けるのが一番確実。タイマーも途中経過も消す。
     recognition.onend = () => {
+      clearSilenceTimer()
       setIsListening(false)
       setInterimTranscript('')
     }
@@ -127,9 +166,26 @@ export function useSpeechRecognition({ lang = 'ja-JP', onResult } = {}) {
 
     recognitionRef.current = recognition
 
+    // autoStart: 「今まさに生成した、生きているインスタンス」に対してすぐ開始する。
+    //   ここで始めるのが肝。React の StrictMode（開発時）は effect を
+    //   「実行 → 破棄 → 再実行」するので、破棄で前のインスタンスは abort される。
+    //   開始処理を effect の外（別の effect やマウント1回ガード）に置くと、
+    //   「abort 済みの古いインスタンスを開始してしまい、生きてる方は開始されない」事故が起きる。
+    //   生成と同じ effect 内で始めれば、再実行のたびに「新しい生きたインスタンス」を開始でき、
+    //   StrictMode でも本番でも確実に録音が立ち上がる。
+    if (autoStart) {
+      try {
+        recognition.start()
+      } catch {
+        // 直前のインスタンスがまだ完全に終わっていない等で稀に InvalidStateError。
+        // onend/onstart で状態は整うので握りつぶす。
+      }
+    }
+
     // 後始末: コンポーネントが消える（モーダルを閉じる等）ときに認識を止める。
-    //   abort() は結果を捨てて即停止。リスナーも明示的に外して取りこぼしを防ぐ。
+    //   abort() は結果を捨てて即停止。タイマーとリスナーも明示的に外して取りこぼしを防ぐ。
     return () => {
+      clearSilenceTimer()
       recognition.onresult = null
       recognition.onstart = null
       recognition.onend = null
@@ -137,8 +193,8 @@ export function useSpeechRecognition({ lang = 'ja-JP', onResult } = {}) {
       recognition.abort()
       recognitionRef.current = null
     }
-    // lang を変えたら作り直す。isSupported はアプリ実行中に変わらないが依存に含めておく。
-  }, [isSupported, lang])
+    // lang / silenceTimeoutMs / autoStart を変えたら作り直す。isSupported は実行中に変わらない。
+  }, [isSupported, lang, silenceTimeoutMs, autoStart])
 
   // ---- 公開する操作 --------------------------------------------------------
 
