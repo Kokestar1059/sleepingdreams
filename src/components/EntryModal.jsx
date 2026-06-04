@@ -67,6 +67,15 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
   // モーダル内の表示モード： 'list' は一覧、'form' は作成/編集フォーム
   // autoVoice のときは一覧を飛ばして、いきなり新規作成フォームから始める。
   const [view, setView] = useState(autoVoice ? 'form' : 'list')
+
+  // 「音声の自動開始がまだ有効か」を表すワンショットのフラグ。
+  //   FAB から開いた直後の "最初のフォーム" でだけ自動録音したい。
+  //   保存して一覧へ戻る → そのメモを開き直す（編集フォーム再マウント）と、
+  //   autoVoice が true のままだと毎回また録音が始まってしまう。
+  //   そこで「一覧へ戻る/別フォームへ移る」などの画面遷移が起きたら false に倒し、
+  //   2 回目以降のフォームでは自動開始しないようにする（初回だけのワンショット）。
+  const [autoVoiceArmed, setAutoVoiceArmed] = useState(autoVoice)
+  const disarmAutoVoice = () => setAutoVoiceArmed(false)
   // 編集中のエントリー。null なら新規作成モード。
   const [editingEntry, setEditingEntry] = useState(null)
   // フォームの入力値（制御コンポーネント）
@@ -102,8 +111,10 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
     if (e.target === e.currentTarget) onClose()
   }
 
-  // 「新規追加」ボタン
+  // 「新規追加」ボタン（一覧から手動で開く新規フォーム）
   const handleClickCreate = () => {
+    // 手動で開いたフォームでは自動録音しない（FAB 初回フォームとの区別）。
+    disarmAutoVoice()
     setEditingEntry(null)
     setTitle('')
     setBody('')
@@ -112,6 +123,8 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
 
   // 一覧のエントリーをタップ → 編集モード
   const handleClickEdit = (entry) => {
+    // 既存メモを開き直す編集フォームでも自動録音しない。
+    disarmAutoVoice()
     setEditingEntry(entry)
     setTitle(entry.title)
     setBody(entry.body)
@@ -132,6 +145,8 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
       onCreate({ entryDate: dateKey, title: trimmedTitle, body: trimmedBody })
     }
     // 保存したら一覧に戻る（モーダルは閉じない＝続けて他のエントリーを編集できる）
+    // ここで一覧に戻る＝初回フォームを離れたので、自動録音のワンショットも解除する。
+    disarmAutoVoice()
     setView('list')
     setEditingEntry(null)
     setTitle('')
@@ -147,6 +162,7 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
     const ok = window.confirm('このメモを消しますか？')
     if (!ok) return
     onDelete(editingEntry.id)
+    disarmAutoVoice()
     setView('list')
     setEditingEntry(null)
   }
@@ -250,9 +266,13 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, a
             onChangeTitle={setTitle}
             onChangeBody={setBody}
             onSubmit={handleSubmit}
-            onCancel={() => setView('list')}
+            onCancel={() => {
+              // キャンセルで一覧へ戻るときも自動録音のワンショットを解除する。
+              disarmAutoVoice()
+              setView('list')
+            }}
             onDelete={handleDelete}
-            autoStartVoice={autoVoice}
+            autoStartVoice={autoVoiceArmed}
           />
         )}
       </div>
