@@ -42,6 +42,8 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import MicIcon from './MicIcon'
 
 /**
  * @param {Object} props
@@ -51,15 +53,29 @@ import { useEffect, useState } from 'react'
  * @param {Function} props.onCreate             ({ entryDate, title, body }) を渡すと新規作成
  * @param {Function} props.onUpdate             (id, { title, body }) で更新
  * @param {Function} props.onDelete             (id) で削除
+ * @param {boolean}  [props.autoVoice=false]    true なら開いた瞬間に新規フォーム＋音声入力を自動開始
  *
  * 注意:
  *   - このコンポーネントは「モーダルが開いている間だけ」マウントされる前提。
  *     親（Calendar）で `selectedDateKey !== null` のときだけ描画する。
  *     こうすると閉→開のたびに内部 state が自動でリセットされる。
+ *   - autoVoice はカレンダー下の「クイック音声 FAB」から開いたときだけ true。
+ *     マウントのたびにリセットされる前提なので、初期 state を props から決めて良い
+ *     （props 変化を useEffect で state に同期する anti-pattern は不要）。
  */
-function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete }) {
+function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete, autoVoice = false }) {
   // モーダル内の表示モード： 'list' は一覧、'form' は作成/編集フォーム
-  const [view, setView] = useState('list')
+  // autoVoice のときは一覧を飛ばして、いきなり新規作成フォームから始める。
+  const [view, setView] = useState(autoVoice ? 'form' : 'list')
+
+  // 「音声の自動開始がまだ有効か」を表すワンショットのフラグ。
+  //   FAB から開いた直後の "最初のフォーム" でだけ自動録音したい。
+  //   保存して一覧へ戻る → そのメモを開き直す（編集フォーム再マウント）と、
+  //   autoVoice が true のままだと毎回また録音が始まってしまう。
+  //   そこで「一覧へ戻る/別フォームへ移る」などの画面遷移が起きたら false に倒し、
+  //   2 回目以降のフォームでは自動開始しないようにする（初回だけのワンショット）。
+  const [autoVoiceArmed, setAutoVoiceArmed] = useState(autoVoice)
+  const disarmAutoVoice = () => setAutoVoiceArmed(false)
   // 編集中のエントリー。null なら新規作成モード。
   const [editingEntry, setEditingEntry] = useState(null)
   // フォームの入力値（制御コンポーネント）
@@ -95,8 +111,10 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
     if (e.target === e.currentTarget) onClose()
   }
 
-  // 「新規追加」ボタン
+  // 「新規追加」ボタン（一覧から手動で開く新規フォーム）
   const handleClickCreate = () => {
+    // 手動で開いたフォームでは自動録音しない（FAB 初回フォームとの区別）。
+    disarmAutoVoice()
     setEditingEntry(null)
     setTitle('')
     setBody('')
@@ -105,6 +123,8 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
 
   // 一覧のエントリーをタップ → 編集モード
   const handleClickEdit = (entry) => {
+    // 既存メモを開き直す編集フォームでも自動録音しない。
+    disarmAutoVoice()
     setEditingEntry(entry)
     setTitle(entry.title)
     setBody(entry.body)
@@ -125,6 +145,8 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
       onCreate({ entryDate: dateKey, title: trimmedTitle, body: trimmedBody })
     }
     // 保存したら一覧に戻る（モーダルは閉じない＝続けて他のエントリーを編集できる）
+    // ここで一覧に戻る＝初回フォームを離れたので、自動録音のワンショットも解除する。
+    disarmAutoVoice()
     setView('list')
     setEditingEntry(null)
     setTitle('')
@@ -140,6 +162,7 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
     const ok = window.confirm('このメモを消しますか？')
     if (!ok) return
     onDelete(editingEntry.id)
+    disarmAutoVoice()
     setView('list')
     setEditingEntry(null)
   }
@@ -243,8 +266,13 @@ function EntryModal({ dateKey, entries, onClose, onCreate, onUpdate, onDelete })
             onChangeTitle={setTitle}
             onChangeBody={setBody}
             onSubmit={handleSubmit}
-            onCancel={() => setView('list')}
+            onCancel={() => {
+              // キャンセルで一覧へ戻るときも自動録音のワンショットを解除する。
+              disarmAutoVoice()
+              setView('list')
+            }}
             onDelete={handleDelete}
+            autoStartVoice={autoVoiceArmed}
           />
         )}
       </div>
@@ -353,7 +381,63 @@ function FormView({
   onSubmit,
   onCancel,
   onDelete,
+  autoStartVoice = false,
 }) {
+  // 音声認識フック。確定文（final）が来るたびに onResult が呼ばれる。
+  //   onChangeBody は親の setBody そのものなので、更新関数 (prev => ...) を渡せる。
+  //   こうすると「直前の本文」を確実に受け取れる（非同期で何度も追記しても取りこぼさない）。
+  //   日本語は単語間にスペースを入れないので、確定文はそのまま連結する。
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    interimTranscript,
+    error: speechError,
+    start: startListening,
+    stop: stopListening,
+  } = useSpeechRecognition({
+    lang: 'ja-JP',
+    // クイック音声 FAB から開いたとき（autoStartVoice=true）は、
+    // フックが認識インスタンスを用意でき次第すぐ録音を始める。
+    // 通常の「新規追加」や編集では false なので勝手に始まらない。
+    autoStart: autoStartVoice,
+    onResult: (chunk) => {
+      const text = chunk.trim()
+      if (!text) return
+      onChangeBody((prev) => (prev ? prev + text : text))
+    },
+  })
+
+  // マイクボタンのタップ: 聞き取り中なら止める、そうでなければ始める（トグル）。
+  const handleToggleMic = () => {
+    if (isListening) stopListening()
+    else startListening()
+  }
+
+  // エラー表示の文言を決める。'no-speech'(無音) や 'aborted'(中断) は
+  //   日常的に起きるので黙殺し、ユーザーが対処できるものだけ言葉にする。
+  //   コードごとに原因が違うので、対処につながるよう種別で文言を変える。
+  const speechErrorMessage = (() => {
+    switch (speechError) {
+      case null:
+      case undefined:
+      case 'no-speech': // 無音で終了（よくある・黙殺）
+      case 'aborted': // 中断（stop/abort・黙殺）
+        return null
+      case 'not-allowed':
+      case 'service-not-allowed':
+        return 'マイクの使用が許可されていません'
+      case 'audio-capture':
+        return 'マイクが見つかりません'
+      case 'network':
+        return '音声認識サーバーに接続できません（ネットワーク/ブラウザ設定を確認）'
+      case 'language-not-supported':
+        return 'この言語の音声認識に対応していません'
+      default:
+        // 未知のコードはそのまま出して原因特定の手がかりにする。
+        return `音声認識エラー: ${speechError}`
+    }
+  })()
+
   return (
     <form onSubmit={onSubmit} className="flex-1 flex flex-col overflow-hidden">
       {/* 入力エリア。余白 px-4 py-3 space-y-3 → px-6 py-5 space-y-4 でゆったりさせる */}
@@ -379,9 +463,47 @@ function FormView({
         </div>
 
         <div>
-          <label htmlFor="entry-body" className="block text-xs text-gray-400 tracking-[0.06em] mb-2">
-            内容
-          </label>
+          {/*
+            ラベル行: 左にラベル「内容」、右に音声入力ボタン。
+              非対応ブラウザ（isSpeechSupported=false）ではボタン自体を出さない。
+              出しても押せないものを見せると寝ぼけた指が迷うため、存在ごと消すのが親切。
+          */}
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="entry-body" className="block text-xs text-gray-400 tracking-[0.06em]">
+              内容
+            </label>
+            {isSpeechSupported && (
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                aria-label={isListening ? '音声入力を止める' : '音声入力を始める'}
+                aria-pressed={isListening}
+                className={`
+                  h-11 px-3 -my-1
+                  inline-flex items-center gap-1.5
+                  rounded-full text-xs tracking-[0.04em]
+                  transition-colors
+                  ${
+                    isListening
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-400 hover:bg-gray-50 active:opacity-60'
+                  }
+                `}
+              >
+                {/*
+                  アイコンは原研哉トーンに合わせ単色のミニマルなマイク。
+                    聞き取り中は「●（録音中）」を点滅させ、テキストも「停止」に変える。
+                    点滅は Tailwind 標準ユーティリティ animate-pulse（ゆっくり明滅）で控えめに。
+                */}
+                {isListening ? (
+                  <span className="h-2 w-2 rounded-full bg-white animate-pulse" aria-hidden="true" />
+                ) : (
+                  <MicIcon />
+                )}
+                {isListening ? '停止' : '音声'}
+              </button>
+            )}
+          </div>
           {/*
             夢の内容を書く欄は「入力フォーム」ではなく「日記のページ」として体験させたい。
               - text-sm → text-base leading-relaxed: 16px + ゆったり行間で寝起きでも読みやすい
@@ -402,6 +524,22 @@ function FormView({
               focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-400
             "
           />
+
+          {/*
+            音声入力のフィードバック行（高さ固定で出し入れしてもレイアウトが跳ねないように）。
+              優先順位: エラー > 途中経過 > 聞き取り中の案内。
+              - 確定文は textarea に既に入っているので、ここには「未確定の途中経過」だけ出す。
+              - iOS Safari は途中経過が来ないことがあるので、その時は「聞き取り中…」を出す。
+          */}
+          <div className="mt-2 min-h-[1.25rem] text-xs tracking-[0.02em]">
+            {speechErrorMessage ? (
+              <span className="text-red-300">{speechErrorMessage}</span>
+            ) : isListening ? (
+              <span className="text-gray-400">
+                {interimTranscript || '聞き取り中…'}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {/*
